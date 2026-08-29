@@ -26,6 +26,13 @@ def find_document_contour(image_np):
             break
     return doc_cnt
 
+def auto_rotate_image(img_np):
+    h, w = img_np.shape[:2]
+    # If image is horizontal (landscape: width > height), rotate 90 degrees clockwise to become vertical (portrait)
+    if w > h:
+        img_np = cv2.rotate(img_np, cv2.ROTATE_90_CLOCKWISE)
+    return img_np
+
 def run_ocr_on_image(image):
     if image is None:
         return None, ""
@@ -34,6 +41,8 @@ def run_ocr_on_image(image):
     else:
         img_np = image
         
+    # Auto-rotate horizontal/landscape images to vertical/portrait
+    img_np = auto_rotate_image(img_np)
     annotated_img = img_np.copy()
     
     # 1. Find document contour

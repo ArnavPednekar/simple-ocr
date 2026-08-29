@@ -3,6 +3,12 @@ import easyocr
 import numpy as np
 import os
 
+def auto_rotate_image(img_np):
+    h, w = img_np.shape[:2]
+    if w > h:
+        img_np = cv2.rotate(img_np, cv2.ROTATE_90_CLOCKWISE)
+    return img_np
+
 def find_document_contour(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
@@ -42,6 +48,8 @@ def main():
             img = cv2.imread(sample_path)
             if img is None:
                 continue
+            
+            img = auto_rotate_image(img)
                 
             # Find document contour
             contour = find_document_contour(img)
@@ -80,6 +88,8 @@ def main():
             print("Error: Failed to grab frame.")
             break
             
+        frame = auto_rotate_image(frame)
+        
         frame_count += 1
         if frame_count % 5 == 0:
             try:
