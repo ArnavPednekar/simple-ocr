@@ -1,6 +1,6 @@
-# 100% Local OCR & OpenCV Document Scanner
+# Simple OCR & OpenCV Document Scanner
 
-A robust, 100% local and offline Optical Character Recognition (OCR) and document scanning pipeline powered by **EasyOCR** and **OpenCV**, supporting both printed text and handwritten notes.
+A robust, Optical Character Recognition (OCR) and document scanning pipeline powered by **EasyOCR** and **OpenCV**, supporting both printed text and handwritten notes.
 
 ## Features
 1. **100% Local & Offline OCR (`EasyOCR`):** Pretrained PyTorch models running entirely offline without external API keys.
