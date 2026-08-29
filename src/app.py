@@ -33,14 +33,46 @@ def auto_rotate_image(img_np):
         img_np = cv2.rotate(img_np, cv2.ROTATE_90_COUNTERCLOCKWISE)
     return img_np
 
-def preprocess_image_for_ocr(img_np):
+def order_points(pts):
+    rect = np.zeros((4, 2), dtype="float32")
+    s = pts.sum(axis=1)
+    rect[0] = pts[np.argmin(s)]
+    rect[2] = pts[np.argmax(s)]
+    diff = np.diff(pts, axis=1)
+    rect[1] = pts[np.argmin(diff)]
+    rect[3] = pts[np.argmax(diff)]
+    return rect
+
+def four_point_transform(image, pts):
+    rect = order_points(pts.reshape(4, 2))
+    (tl, tr, br, bl) = rect
+    widthA = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
+    widthB = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
+    maxWidth = max(int(widthA), int(widthB))
+    
+    heightA = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
+    heightB = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
+    maxHeight = max(int(heightA), int(heightB))
+    
+    dst = np.array([
+        [0, 0],
+        [maxWidth - 1, 0],
+        [maxWidth - 1, maxHeight - 1],
+        [0, maxHeight - 1]], dtype="float32")
+        
+    M = cv2.getPerspectiveTransform(rect, dst)
+    warped = cv2.warpPerspective(image, M, (maxWidth, maxHeight))
+    return warped
+
+def apply_adaptive_threshold(img_np):
     if len(img_np.shape) == 3:
         gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
     else:
         gray = img_np
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    enhanced = clahe.apply(gray)
-    return cv2.cvtColor(enhanced, cv2.COLOR_GRAY2RGB)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                   cv2.THRESH_BINARY, 11, 2)
+    return cv2.cvtColor(thresh, cv2.COLOR_GRAY2RGB)
 
 def run_ocr_on_image(image):
     if image is None:
@@ -50,22 +82,24 @@ def run_ocr_on_image(image):
     else:
         img_np = image
         
-    # Auto-rotate horizontal/landscape images to vertical/portrait
+    # 1. Auto-rotate horizontal/landscape images to vertical/portrait
     img_np = auto_rotate_image(img_np)
     annotated_img = img_np.copy()
     
-    # 1. Find document contour
+    # 2. Find document contour & apply Perspective Transformation (Warp Perspective)
     contour = find_document_contour(img_np)
     if contour is not None:
         cv2.drawContours(annotated_img, [contour], -1, (255, 0, 0), 3) # Blue contour for document
+        ocr_target_img = four_point_transform(img_np, contour)
     else:
         h, w, _ = img_np.shape
         cv2.rectangle(annotated_img, (10, 10), (w-10, h-10), (255, 0, 0), 3)
+        ocr_target_img = img_np
         
-    # 2. Preprocess image for handwriting/lighting (CLAHE contrast enhancement)
-    processed_img = preprocess_image_for_ocr(img_np)
+    # 3. Convert to Grayscale & Apply Adaptive Thresholding
+    processed_img = apply_adaptive_threshold(ocr_target_img)
     
-    # 3. Run EasyOCR with paragraph grouping for structured line reading
+    # 4. Run EasyOCR with paragraph grouping for structured line reading
     results = reader.readtext(processed_img, paragraph=True)
     
     # Sort results top-to-bottom by vertical coordinate of bounding box
