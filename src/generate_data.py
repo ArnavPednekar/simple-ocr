@@ -5,7 +5,7 @@ import numpy as np
 
 # Configuration
 OUTPUT_DIR = "data/synthetic"
-NUM_IMAGES = 500
+NUM_IMAGES = 100
 IMG_HEIGHT = 32
 VOCAB = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 

@@ -6,3 +6,4 @@ albumentations
 numpy
 gradio
 pymupdf
+easyocr

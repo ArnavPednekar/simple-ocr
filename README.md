@@ -1,17 +1,16 @@
-# Simple OCR from Scratch
+# Simple OCR & Document Contour Detection
 
-A lightweight Optical Character Recognition (OCR) pipeline built from scratch using **PyTorch**, **CRNN (Convolutional Recurrent Neural Network)**, and **CTC Loss**.
+A lightweight Optical Character Recognition (OCR) and document analysis pipeline powered by **EasyOCR** and **OpenCV**, supporting both printed text and handwritten notes.
 
-## Project Architecture
-1. **Synthetic Data Generator (`src/generate_data.py`):** Renders random alphanumeric words onto synthetic images with configurable fonts.
-2. **Dataset & DataLoader (`src/dataset.py`):** Handles image loading, preprocessing, normalization, aspect-ratio-preserving resizing, and CTC target encoding.
-3. **CRNN Model (`src/model.py`):** 
-   - **CNN Feature Extractor:** Extracts spatial feature maps from text line images.
-   - **BiLSTM Sequence Encoder:** Captures character context left-to-right and right-to-left.
-   - **Linear Classifier:** Maps hidden states to vocabulary classes.
-4. **Training Loop (`src/train.py`):** Trains the network using Connectionist Temporal Classification (CTC) loss.
-5. **Inference & Web UI (`src/app.py` & `src/infer.py`):** Provides a Gradio web interface supporting both images and PDFs, plus script-based inference.
-6. **Cleanup (`src/clean.py`):** Removes temporary synthetic datasets.
+## Features
+1. **Pretrained OCR Engine (`EasyOCR`):** High-accuracy text recognition supporting both printed documents and handwritten notes out-of-the-box.
+2. **Document Contour Detection (`OpenCV`):** Automatically detects document borders and text bounding boxes, highlighting them on annotated output images.
+3. **Web UI (`src/app.py`):** Gradio web interface supporting:
+   - File Upload (Images & PDFs)
+   - Webcam Capture / Photo Upload
+   - Visual annotations (Document contours + text bounding boxes)
+4. **Live Camera Feed (`src/live_camera.py`):** Real-time webcam OCR with contour detection and automatic fallback demo mode.
+5. **Synthetic Data & Training (`src/generate_data.py`, `src/train.py`):** Utilities for synthetic dataset generation and custom CRNN training.
 
 ---
 
@@ -24,20 +23,18 @@ source venv/bin/activate  # On Windows use: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. Generate Synthetic Data & Train
-```bash
-python src/generate_data.py
-python src/train.py
-```
-
-### 3. Launch the Web UI (Images & PDFs)
+### 2. Launch the Web UI (Images, PDFs & Webcam)
 ```bash
 python src/app.py
 ```
-Open `http://127.0.0.1:7860` in your browser to upload images or PDF documents and run OCR inference.
+Open `http://127.0.0.1:7860` in your browser (or use the generated public link) to upload documents or use your webcam.
 
-### 4. Run CLI Inference / Clean Data
+### 3. Run Live Camera OCR CLI
+```bash
+python src/live_camera.py
+```
+
+### 4. Run CLI Inference
 ```bash
 python src/infer.py
-python src/clean.py
 ```

@@ -7,8 +7,8 @@ from model import CRNN
 
 def train():
     data_dir = "data/synthetic"
-    batch_size = 64
-    epochs = 3
+    batch_size = 16
+    epochs = 60
     lr = 0.001
     img_height = 32
     
