@@ -1,8 +1,11 @@
 import os
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+
 from PIL import Image
 import numpy as np
 import gradio as gr
-import fitz  # PyMuPDF for PDF support
+import pymupdf as fitz  # PyMuPDF for PDF support
 import easyocr
 import cv2
 

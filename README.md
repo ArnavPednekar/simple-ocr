@@ -1,16 +1,17 @@
-# Simple OCR & Document Contour Detection
+# 100% Local OCR & OpenCV Document Scanner
 
-A lightweight Optical Character Recognition (OCR) and document analysis pipeline powered by **EasyOCR** and **OpenCV**, supporting both printed text and handwritten notes.
+A robust, 100% local and offline Optical Character Recognition (OCR) and document scanning pipeline powered by **EasyOCR** and **OpenCV**, supporting both printed text and handwritten notes.
 
 ## Features
-1. **Pretrained OCR Engine (`EasyOCR`):** High-accuracy text recognition supporting both printed documents and handwritten notes out-of-the-box.
-2. **Document Contour Detection (`OpenCV`):** Automatically detects document borders and text bounding boxes, highlighting them on annotated output images.
-3. **Web UI (`src/app.py`):** Gradio web interface supporting:
+1. **100% Local & Offline OCR (`EasyOCR`):** Pretrained PyTorch models running entirely offline without external API keys.
+2. **Document Contour Detection (`OpenCV`):** Uses Otsu thresholding and area filtering to isolate the white paper sheet from dark backgrounds, avoiding stray contours.
+3. **Perspective Warping & Adaptive Thresholding (`four_point_transform`):** Straightens angled/skewed document photos into a clean top-down view and binarizes text using adaptive thresholding.
+4. **Auto-Orientation Correction:** Automatically detects horizontal/landscape images and rotates them to vertical portrait orientation.
+5. **Web UI (`src/app.py`):** Gradio interface supporting:
    - File Upload (Images & PDFs)
    - Webcam Capture / Photo Upload
-   - Visual annotations (Document contours + text bounding boxes)
-4. **Live Camera Feed (`src/live_camera.py`):** Real-time webcam OCR with contour detection and automatic fallback demo mode.
-5. **Synthetic Data & Training (`src/generate_data.py`, `src/train.py`):** Utilities for synthetic dataset generation and custom CRNN training.
+   - Visual annotations (Paper sheet contours + text bounding boxes)
+6. **Live Camera Feed (`src/live_camera.py`):** Real-time webcam OCR with contour detection and automatic fallback demo mode.
 
 ---
 
