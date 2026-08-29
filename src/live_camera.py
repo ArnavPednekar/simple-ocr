@@ -6,7 +6,7 @@ import os
 def auto_rotate_image(img_np):
     h, w = img_np.shape[:2]
     if w > h:
-        img_np = cv2.rotate(img_np, cv2.ROTATE_90_CLOCKWISE)
+        img_np = cv2.rotate(img_np, cv2.ROTATE_90_COUNTERCLOCKWISE)
     return img_np
 
 def find_document_contour(image):

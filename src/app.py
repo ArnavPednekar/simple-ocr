@@ -28,9 +28,9 @@ def find_document_contour(image_np):
 
 def auto_rotate_image(img_np):
     h, w = img_np.shape[:2]
-    # If image is horizontal (landscape: width > height), rotate 90 degrees clockwise to become vertical (portrait)
+    # If image is horizontal (landscape: width > height), rotate 90 degrees counter-clockwise to become vertical (portrait)
     if w > h:
-        img_np = cv2.rotate(img_np, cv2.ROTATE_90_CLOCKWISE)
+        img_np = cv2.rotate(img_np, cv2.ROTATE_90_COUNTERCLOCKWISE)
     return img_np
 
 def run_ocr_on_image(image):
