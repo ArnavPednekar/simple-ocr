@@ -33,6 +33,15 @@ def auto_rotate_image(img_np):
         img_np = cv2.rotate(img_np, cv2.ROTATE_90_COUNTERCLOCKWISE)
     return img_np
 
+def preprocess_image_for_ocr(img_np):
+    if len(img_np.shape) == 3:
+        gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
+    else:
+        gray = img_np
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    enhanced = clahe.apply(gray)
+    return cv2.cvtColor(enhanced, cv2.COLOR_GRAY2RGB)
+
 def run_ocr_on_image(image):
     if image is None:
         return None, ""
@@ -53,15 +62,22 @@ def run_ocr_on_image(image):
         h, w, _ = img_np.shape
         cv2.rectangle(annotated_img, (10, 10), (w-10, h-10), (255, 0, 0), 3)
         
-    # 2. Run EasyOCR
-    results = reader.readtext(img_np)
+    # 2. Preprocess image for handwriting/lighting (CLAHE contrast enhancement)
+    processed_img = preprocess_image_for_ocr(img_np)
+    
+    # 3. Run EasyOCR with paragraph grouping for structured line reading
+    results = reader.readtext(processed_img, paragraph=True)
+    
+    # Sort results top-to-bottom by vertical coordinate of bounding box
+    results = sorted(results, key=lambda x: x[0][0][1])
+    
     text_lines = []
-    for (bbox, text, prob) in results:
+    for (bbox, text) in results:
         text_lines.append(text)
         pts = np.array(bbox, dtype=np.int32).reshape((-1, 1, 2))
         cv2.drawContours(annotated_img, [pts], -1, (0, 255, 0), 2) # Green boxes for text
         top_left = (int(bbox[0][0]), max(int(bbox[0][1]) - 10, 15))
-        cv2.putText(annotated_img, f"{text}", top_left, cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+        cv2.putText(annotated_img, f"{text}", top_left, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
         
     return Image.fromarray(annotated_img), "\n".join(text_lines)
 
