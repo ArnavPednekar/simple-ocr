@@ -5,8 +5,10 @@ import gradio as gr
 import fitz  # PyMuPDF for PDF support
 import easyocr
 import cv2
+import base64
+from io import BytesIO
 
-# Initialize EasyOCR Reader for English
+# Initialize EasyOCR Reader for fallback
 reader = easyocr.Reader(['en'], gpu=False)
 
 def find_document_contour(image_np):
@@ -74,69 +76,68 @@ def apply_adaptive_threshold(img_np):
                                    cv2.THRESH_BINARY, 11, 2)
     return cv2.cvtColor(thresh, cv2.COLOR_GRAY2RGB)
 
-def run_ocr_on_image(image):
-    if image is None:
-        return None, ""
-    if isinstance(image, Image.Image):
-        img_np = np.array(image.convert("RGB"))
-    else:
-        img_np = image
-        
-    # 1. Auto-rotate horizontal/landscape images to vertical/portrait
-    img_np = auto_rotate_image(img_np)
-    annotated_img = img_np.copy()
-    
-    # 2. Find document contour & apply Perspective Transformation (Warp Perspective)
-    contour = find_document_contour(img_np)
-    if contour is not None:
-        cv2.drawContours(annotated_img, [contour], -1, (255, 0, 0), 3) # Blue contour for document
-        ocr_target_img = four_point_transform(img_np, contour)
-    else:
-        h, w, _ = img_np.shape
-        cv2.rectangle(annotated_img, (10, 10), (w-10, h-10), (255, 0, 0), 3)
-        ocr_target_img = img_np
-        
-    # 3. Convert to Grayscale & Apply Adaptive Thresholding
-    processed_img = apply_adaptive_threshold(ocr_target_img)
-    
-    # 4. Run EasyOCR with paragraph grouping for structured line reading
-    results = reader.readtext(processed_img, paragraph=True)
-    
-    # Sort results top-to-bottom by vertical coordinate of bounding box
-    results = sorted(results, key=lambda x: x[0][0][1])
-    
-    text_lines = []
-    for (bbox, text) in results:
-        text_lines.append(text)
-        pts = np.array(bbox, dtype=np.int32).reshape((-1, 1, 2))
-        cv2.drawContours(annotated_img, [pts], -1, (0, 255, 0), 2) # Green boxes for text
-        top_left = (int(bbox[0][0]), max(int(bbox[0][1]) - 10, 15))
-        cv2.putText(annotated_img, f"{text}", top_left, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-        
-    return Image.fromarray(annotated_img), "\n".join(text_lines)
+def image_to_base64(pil_img):
+    buffered = BytesIO()
+    pil_img.save(buffered, format="JPEG")
+    return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-def ocr_inference(file_obj):
+def extract_text_via_llm(warped_pil_img, provider, api_key):
+    if provider == "EasyOCR (Local)" or not api_key:
+        # Fallback to local EasyOCR with adaptive thresholding & line sorting
+        processed = apply_adaptive_threshold(np.array(warped_pil_img))
+        results = reader.readtext(processed, paragraph=True)
+        results = sorted(results, key=lambda x: x[0][0][1])
+        return "\n".join([text for (_, text) in results])
+        
+    base64_image = image_to_base64(warped_pil_img)
+    prompt = "Transcribe all the handwritten and printed text in this document accurately in natural reading order, preserving line breaks and formatting."
+    
+    if provider == "OpenAI GPT-4o":
+        try:
+            import openai
+            openai.api_key = api_key
+            response = openai.ChatCompletion.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                        ]
+                    }
+                ],
+                max_tokens=1500
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            return f"OpenAI Error: {str(e)}"
+            
+    elif provider == "Google Gemini":
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            response = model.generate_content([prompt, warped_pil_img])
+            return response.text
+        except Exception as e:
+            return f"Gemini Error: {str(e)}"
+            
+    return "Invalid provider selected."
+
+def process_document(file_obj, provider, api_key):
     if file_obj is None:
         return None, "Please upload an image or a PDF file."
-    
+        
     file_path = file_obj if isinstance(file_obj, str) else getattr(file_obj, "name", None)
     
     if file_path and file_path.lower().endswith(".pdf"):
         try:
             doc = fitz.open(file_path)
-            results = []
-            first_img = None
-            for page_num in range(len(doc)):
-                page = doc[page_num]
-                pix = page.get_pixmap(dpi=150)
-                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                if page_num == 0:
-                    first_img, text = run_ocr_on_image(img)
-                else:
-                    _, text = run_ocr_on_image(img)
-                results.append(f"--- Page {page_num + 1} ---\n{text}")
+            page = doc[0]
+            pix = page.get_pixmap(dpi=150)
+            img_np = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, 3)
             doc.close()
-            return first_img, "\n\n".join(results)
         except Exception as e:
             return None, f"Error processing PDF: {str(e)}"
     else:
@@ -146,36 +147,62 @@ def ocr_inference(file_obj):
             img = Image.fromarray(file_obj)
         else:
             img = Image.open(file_obj.name) if hasattr(file_obj, "name") else Image.fromarray(file_obj)
-            
-        return run_ocr_on_image(img)
-
-def webcam_inference(cam_image):
-    if cam_image is None:
-        return None, "No webcam image captured."
-    return run_ocr_on_image(cam_image)
-
-with gr.Blocks(title="OCR - Document Contour & Text Extraction") as demo:
-    gr.Markdown("# OCR & Document Contour Detection (Print & Handwritten Notes)")
-    gr.Markdown("Upload printed text, handwritten notes, PDFs, or use your webcam to detect document contours, text boxes, and extract text.")
+        img_np = np.array(img.convert("RGB"))
+        
+    # 1. Auto-rotate horizontal/landscape images to vertical/portrait
+    img_np = auto_rotate_image(img_np)
+    annotated_img = img_np.copy()
     
+    # 2. OpenCV Contour Detection & Perspective Warp (Warp Perspective)
+    contour = find_document_contour(img_np)
+    if contour is not None:
+        cv2.drawContours(annotated_img, [contour], -1, (255, 0, 0), 3) # Blue contour for document
+        warped_np = four_point_transform(img_np, contour)
+        warped_pil = Image.fromarray(warped_np)
+    else:
+        h, w, _ = img_np.shape
+        cv2.rectangle(annotated_img, (10, 10), (w-10, h-10), (255, 0, 0), 3)
+        warped_pil = Image.fromarray(img_np)
+        
+    # 3. Transcribe via LLM (or EasyOCR fallback)
+    extracted_text = extract_text_via_llm(warped_pil, provider, api_key)
+    
+    return Image.fromarray(annotated_img), extracted_text
+
+with gr.Blocks(title="OCR - OpenCV Contours & LLM Transcription") as demo:
+    gr.Markdown("# OpenCV Document Scanner + LLM Transcription (Print & Handwriting)")
+    gr.Markdown("OpenCV detects document contours & warps perspective, and an LLM (GPT-4o or Gemini) accurately reads handwritten notes and printed text!")
+    
+    with gr.Row():
+        provider_dropdown = gr.Dropdown(
+            choices=["EasyOCR (Local)", "OpenAI GPT-4o", "Google Gemini"],
+            value="EasyOCR (Local)",
+            label="OCR / Transcription Engine"
+        )
+        api_key_input = gr.Textbox(
+            label="API Key (Required for OpenAI / Gemini)",
+            type="password",
+            placeholder="sk-... or AIza..."
+        )
+        
     with gr.Tabs():
         with gr.TabItem("Upload File (Image / PDF)"):
             with gr.Row():
                 file_input = gr.File(label="Upload Image or PDF", file_types=[".png", ".jpg", ".jpeg", ".pdf"])
-            file_btn = gr.Button("Run OCR & Detect Contours")
+            file_btn = gr.Button("Scan Document & Extract Text")
             with gr.Row():
-                file_img_output = gr.Image(label="Annotated Image (Blue: Document Contour, Green: Text Boxes)")
-                file_text_output = gr.Textbox(label="Extracted OCR Text", lines=10)
-            file_btn.click(fn=ocr_inference, inputs=file_input, outputs=[file_img_output, file_text_output])
+                file_img_output = gr.Image(label="Annotated Document (OpenCV Contour)")
+                file_text_output = gr.Textbox(label="Transcribed Text", lines=12)
+            file_btn.click(fn=process_document, inputs=[file_input, provider_dropdown, api_key_input], outputs=[file_img_output, file_text_output])
             
-        with gr.TabItem("Webcam Capture"):
+        with gr.TabItem("Webcam / Photo Capture"):
             with gr.Row():
                 webcam_input = gr.Image(label="Webcam / Upload Photo", sources=["upload", "webcam"], type="pil")
             webcam_btn = gr.Button("Capture & Extract Text")
             with gr.Row():
-                webcam_img_output = gr.Image(label="Annotated Image")
-                webcam_text_output = gr.Textbox(label="Extracted OCR Text", lines=10)
-            webcam_btn.click(fn=webcam_inference, inputs=webcam_input, outputs=[webcam_img_output, webcam_text_output])
+                webcam_img_output = gr.Image(label="Annotated Document")
+                webcam_text_output = gr.Textbox(label="Transcribed Text", lines=12)
+            webcam_btn.click(fn=process_document, inputs=[webcam_input, provider_dropdown, api_key_input], outputs=[webcam_img_output, webcam_text_output])
 
 if __name__ == "__main__":
     demo.launch(server_name="127.0.0.1", server_port=7860, share=True)
