@@ -9,9 +9,7 @@ A robust, Optical Character Recognition (OCR) and document scanning pipeline pow
 4. **Auto-Orientation Correction:** Automatically detects horizontal/landscape images and rotates them to vertical portrait orientation.
 5. **Web UI (`src/app.py`):** Gradio interface supporting:
    - File Upload (Images & PDFs)
-   - Webcam Capture / Photo Upload
    - Visual annotations (Paper sheet contours + text bounding boxes)
-6. **Live Camera Feed (`src/live_camera.py`):** Real-time webcam OCR with contour detection and automatic fallback demo mode.
 
 ---
 
@@ -24,18 +22,13 @@ source venv/bin/activate  # On Windows use: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. Launch the Web UI (Images, PDFs & Webcam)
+### 2. Launch the Web UI (Images & PDFs)
 ```bash
 python src/app.py
 ```
-Open `http://127.0.0.1:7860` in your browser (or use the generated public link) to upload documents or use your webcam.
+Open `http://127.0.0.1:7860` in your browser (or use the generated public link) to upload images or PDF documents.
 
-### 3. Run Live Camera OCR CLI
-```bash
-python src/live_camera.py
-```
-
-### 4. Run CLI Inference
+### 3. Run CLI Inference
 ```bash
 python src/infer.py
 ```

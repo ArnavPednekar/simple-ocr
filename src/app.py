@@ -153,24 +153,13 @@ with gr.Blocks(title="100% Local OCR & Document Scanner") as demo:
     gr.Markdown("# 100% Local OCR & OpenCV Document Scanner")
     gr.Markdown("Runs entirely offline using local PyTorch models (EasyOCR) and OpenCV paper contour detection with perspective warping.")
     
-    with gr.Tabs():
-        with gr.TabItem("Upload File (Image / PDF)"):
-            with gr.Row():
-                file_input = gr.File(label="Upload Image or PDF", file_types=[".png", ".jpg", ".jpeg", ".pdf"])
-            file_btn = gr.Button("Scan Document & Extract Text")
-            with gr.Row():
-                file_img_output = gr.Image(label="Annotated Document (Paper Sheet Contour)")
-                file_text_output = gr.Textbox(label="Extracted OCR Text", lines=12)
-            file_btn.click(fn=process_document, inputs=file_input, outputs=[file_img_output, file_text_output])
-            
-        with gr.TabItem("Webcam / Photo Capture"):
-            with gr.Row():
-                webcam_input = gr.Image(label="Webcam / Upload Photo", sources=["upload", "webcam"], type="pil")
-            webcam_btn = gr.Button("Capture & Extract Text")
-            with gr.Row():
-                webcam_img_output = gr.Image(label="Annotated Document")
-                webcam_text_output = gr.Textbox(label="Extracted OCR Text", lines=12)
-            webcam_btn.click(fn=process_document, inputs=webcam_input, outputs=[webcam_img_output, webcam_text_output])
+    with gr.Row():
+        file_input = gr.File(label="Upload Image or PDF", file_types=[".png", ".jpg", ".jpeg", ".pdf"])
+    file_btn = gr.Button("Scan Document & Extract Text")
+    with gr.Row():
+        file_img_output = gr.Image(label="Annotated Document (Paper Sheet Contour)")
+        file_text_output = gr.Textbox(label="Extracted OCR Text", lines=12)
+    file_btn.click(fn=process_document, inputs=file_input, outputs=[file_img_output, file_text_output])
 
 if __name__ == "__main__":
     demo.launch(server_name="127.0.0.1", server_port=7860, share=True)
