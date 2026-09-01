@@ -1,9 +1,9 @@
 # Simple OCR & OpenCV Document Scanner
 
-A robust, Optical Character Recognition (OCR) and document scanning pipeline powered by **EasyOCR** and **OpenCV**, supporting both printed text and handwritten notes.
+A robust, Optical Character Recognition (OCR) and document scanning pipeline powered by **Tesseract OCR** and **OpenCV**, supporting printed text documents.
 
 ## Features
-1. **100% Local & Offline OCR (`EasyOCR`):** Pretrained PyTorch models running entirely offline without external API keys.
+1. **100% Local & Offline OCR (`Tesseract OCR`):** Pretrained local OCR engine running entirely offline without external API keys.
 2. **Document Contour Detection (`OpenCV`):** Uses Otsu thresholding and area filtering to isolate the white paper sheet from dark backgrounds, avoiding stray contours.
 3. **Perspective Warping & Adaptive Thresholding (`four_point_transform`):** Straightens angled/skewed document photos into a clean top-down view and binarizes text using adaptive thresholding.
 4. **Auto-Orientation Correction:** Automatically detects horizontal/landscape images and rotates them to vertical portrait orientation.

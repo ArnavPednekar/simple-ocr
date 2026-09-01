@@ -1,4 +1,16 @@
 import os
+import sys
+
+lib_dir = os.path.abspath("tesseract_local/usr/lib")
+tessdata_dir = os.path.abspath("tesseract_local/usr/share/tessdata")
+tesseract_bin = os.path.abspath("tesseract_local/usr/bin/tesseract")
+
+if os.path.exists(tesseract_bin) and lib_dir not in os.environ.get("LD_LIBRARY_PATH", ""):
+    env = os.environ.copy()
+    env["LD_LIBRARY_PATH"] = lib_dir + os.pathsep + env.get("LD_LIBRARY_PATH", "")
+    env["TESSDATA_PREFIX"] = tessdata_dir
+    os.execve(sys.executable, [sys.executable] + sys.argv, env)
+
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -6,11 +18,10 @@ from PIL import Image
 import numpy as np
 import gradio as gr
 import pymupdf as fitz  # PyMuPDF for PDF support
-import easyocr
+import pytesseract
 import cv2
 
-# Initialize local EasyOCR Reader (100% offline, free, local execution via PyTorch)
-reader = easyocr.Reader(['en'], gpu=False)
+pytesseract.pytesseract.tesseract_cmd = tesseract_bin
 
 def find_document_contour(image_np):
     gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY) if len(image_np.shape) == 3 else image_np
@@ -132,26 +143,49 @@ def process_document(file_obj):
         cv2.rectangle(annotated_img, (10, 10), (w-10, h-10), (255, 0, 0), 3)
         warped_np = img_np
         
-    # 3. Grayscale Conversion & Adaptive Thresholding for clean text recognition
-    processed_img = apply_adaptive_threshold(warped_np)
+    # 3. Grayscale conversion for robust OCR on both scanned documents and digital screenshots
+    if len(warped_np.shape) == 3:
+        gray_img = cv2.cvtColor(warped_np, cv2.COLOR_RGB2GRAY)
+    else:
+        gray_img = warped_np
     
-    # 4. Run local EasyOCR with paragraph grouping and top-to-bottom line sorting
-    results = reader.readtext(processed_img, paragraph=True)
-    results = sorted(results, key=lambda x: x[0][0][1])
+    # 4. Run Tesseract OCR with bounding boxes and line grouping
+    data = pytesseract.image_to_data(gray_img, output_type=pytesseract.Output.DICT)
+    n_boxes = len(data['text'])
     
     text_lines = []
-    for (bbox, text) in results:
-        text_lines.append(text)
-        pts = np.array(bbox, dtype=np.int32).reshape((-1, 1, 2))
-        cv2.drawContours(annotated_img, [pts], -1, (0, 255, 0), 2) # Green boxes for text
-        top_left = (int(bbox[0][0]), max(int(bbox[0][1]) - 10, 15))
-        cv2.putText(annotated_img, f"{text}", top_left, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+    current_line = []
+    last_line_num = -1
+    
+    for i in range(n_boxes):
+        text = data['text'][i].strip()
+        if text:
+            x, y, w, h = data['left'][i], data['top'][i], data['width'][i], data['height'][i]
+            cv2.rectangle(annotated_img, (x, y), (x + w, y + h), (0, 255, 0), 2) # Green boxes for text
+            cv2.putText(annotated_img, text, (x, max(y - 5, 15)), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+            
+            line_num = data['line_num'][i]
+            if line_num != last_line_num:
+                if current_line:
+                    text_lines.append(" ".join(current_line))
+                    current_line = []
+                last_line_num = line_num
+            current_line.append(text)
+            
+    if current_line:
+        text_lines.append(" ".join(current_line))
         
-    return Image.fromarray(annotated_img), "\n".join(text_lines)
+    extracted_text = "\n".join([line for line in text_lines if line.strip()])
+    
+    # Fallback to direct string extraction if line grouping resulted in empty text
+    if not extracted_text.strip():
+        extracted_text = pytesseract.image_to_string(gray_img)
+        
+    return Image.fromarray(annotated_img), extracted_text
 
 with gr.Blocks(title="100% Local OCR & Document Scanner") as demo:
     gr.Markdown("# 100% Local OCR & OpenCV Document Scanner")
-    gr.Markdown("Runs entirely offline using local PyTorch models (EasyOCR) and OpenCV paper contour detection with perspective warping.")
+    gr.Markdown("Runs entirely offline using local Tesseract OCR and OpenCV paper contour detection with perspective warping.")
     
     with gr.Row():
         file_input = gr.File(label="Upload Image or PDF", file_types=[".png", ".jpg", ".jpeg", ".pdf"])

@@ -4,3 +4,5 @@ models/
 __pycache__/
 *.pyc
 .DS_Store
+tesseract_local/
+.gradio/
